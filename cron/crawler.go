@@ -23,12 +23,10 @@ func InitCrawler() {
 		wg.Add(2)
 		go adapter.RedditMemeClient(&wg)
 		go adapter.ImgurMemeClient(&wg)
-		wg.Wait()
 	}); err != nil {
 		log.Printf("Failed to add cron job: %v", err)
 		return
 	}
-
 	cron.Start()
 
 	// Keep the program running

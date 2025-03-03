@@ -49,7 +49,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 			userID := event.Source.UserID
 
 			if message, ok := event.Message.(*linebot.TextMessage); ok {
-				giphyGIFs, err := adapter.GiphyMemeClient(message.Text)
+				giphyGIFs := adapter.GiphyMemeClient(message.Text)
 				if err != nil {
 					log.Println("Error fetching Giphy:", err)
 					return

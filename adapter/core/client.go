@@ -1,28 +1,47 @@
 package core
 
 import (
-	"context"
 	"fmt"
-	"net"
-	"net/http"
-	"time"
+	"sync"
 )
 
-// HTTPClientPool returns a configured http.Client with custom timeout and transport settings
-func HTTPClientPool() *http.Client {
-	return &http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			MaxIdleConns:    10,
-			IdleConnTimeout: 30 * time.Second,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				fmt.Printf("🔌 Connecting to: %s\n", addr)
-				dialer := &net.Dialer{
-					Timeout:   30 * time.Second,
-					KeepAlive: 30 * time.Second,
-				}
-				return dialer.DialContext(ctx, network, addr)
-			},
-		},
+// ClientInterface interface defines the common behavior for all meme clients
+type ClientInterface[T any] interface {
+	Fetch(url string, websiteName string, token string, wg *sync.WaitGroup)
+}
+
+// Client creates a new Client
+type Client[T any] struct {
+	adapter *Adapter[T]
+	Channel chan *T
+}
+
+// NewClient creates a new Client instance
+func NewClient[T any](adapter *Adapter[T]) *Client[T] {
+	return &Client[T]{
+		adapter: adapter,
+		Channel: make(chan *T),
 	}
+}
+
+// Fetch implements ClientInterface
+func (c *Client[T]) Fetch(
+	url string,
+	websiteName string,
+	token string,
+	wg *sync.WaitGroup,
+) {
+	if wg != nil {
+		defer wg.Done()
+	}
+
+	// Get results from adapter
+	results, err := c.adapter.Integrate(url, websiteName, token)
+	if err != nil {
+		fmt.Println("Error fetching results:", err)
+		return
+	}
+
+	// Send results to channel
+	c.Channel <- results
 }

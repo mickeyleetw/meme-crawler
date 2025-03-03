@@ -2,7 +2,6 @@ package adapter
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"meme-crawler/adapter/core"
@@ -29,6 +28,11 @@ func ImgurAdapter(maxResults int, userAgent string) *core.Adapter[ImgurResponse]
 	return core.NewAdapter[ImgurResponse](maxResults, userAgent)
 }
 
+// ImgurClient creates a new Imgur client
+func ImgurClient(maxResults int, userAgent string) *core.Client[ImgurResponse] {
+	return core.NewClient(ImgurAdapter(maxResults, userAgent))
+}
+
 // ImgurMemeClient integrates Imgur
 // use *sync.WaitGroup to wait for the integration to complete
 // wg means wait group pointer
@@ -37,18 +41,25 @@ func ImgurMemeClient(wg *sync.WaitGroup) {
 
 	fmt.Println("🔥 Start to integrate Imgur...")
 
-	adapter := ImgurAdapter(20, "MyImgurBot/1.0")
-	result, err := adapter.Integrate("https://api.imgur.com/3/gallery/search/time/0?q=memes", "Imgur", "22e14abbb66ad685470ca3201dfb1b8b9613defe")
-	if err != nil {
-		log.Printf("Error integrating Imgur: %v", err)
-		return
-	}
-	// print the title and url of the post
-	for _, post := range result.Data {
-		for _, image := range post.Images {
-			fmt.Printf("Id: %s\nLink: %s\n", image.ID, image.Link)
+	client := ImgurClient(20, "MyImgurBot/1.0")
+
+	// Call Fetch with all required parameters
+	client.Fetch(
+		"https://api.imgur.com/3/gallery/search/time/0?q=memes",
+		"Imgur",
+		"22e14abbb66ad685470ca3201dfb1b8b9613defe",
+		wg,
+	)
+
+	// Process the ImgurResponse and convert to []ImageData
+	if result := <-client.Channel; result != nil {
+		images := make([]ImageData, 0)
+		for _, post := range result.Data {
+			images = append(images, post.Images...)
 		}
+		fmt.Println("🔥 Imgur integration completed, found", len(images), "posts")
 	}
 
-	fmt.Println("🔥 Imgur integration completed, found", len(result.Data), "posts")
+	// Close the channel after processing
+	close(client.Channel)
 }
