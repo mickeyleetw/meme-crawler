@@ -2,7 +2,6 @@ package adapter
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"meme-crawler/adapter/core"
@@ -34,24 +33,39 @@ func RedditAdapter(maxResults int, userAgent string) *core.Adapter[RedditRespons
 	return core.NewAdapter[RedditResponse](maxResults, userAgent)
 }
 
+// RedditClient creates a new RedditClient
+func RedditClient(maxResults int, userAgent string) *core.Client[RedditResponse] {
+	return core.NewClient(RedditAdapter(maxResults, userAgent))
+}
+
 // RedditMemeClient integrates Reddit
 // use *sync.WaitGroup to wait for the integration to complete
 // wg means wait group pointer
+// resultChan is a channel to send the result posts
 func RedditMemeClient(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	fmt.Println("🔥 Start to integrate Reddit...")
 
-	adapter := RedditAdapter(20, "MyRedditBot/1.0")
-	result, err := adapter.Integrate("https://www.reddit.com/r/ProgrammerHumor/new.json", "Reddit", "")
-	if err != nil {
-		log.Printf("Error integrating Reddit: %v", err)
-		return
-	}
-	// print the title and url of the post
-	for _, post := range result.Data.Children {
-		fmt.Printf("Title: %s\nURL: %s\n", post.Data.Title, post.Data.URL)
+	client := RedditClient(20, "MyRedditBot/1.0")
+
+	// Call Fetch with all required parameters
+	client.Fetch(
+		"https://www.reddit.com/r/ProgrammerHumor/new.json",
+		"Reddit",
+		"",
+		wg,
+	)
+
+	// Process the RedditResponse and convert to []PostData
+	if result := <-client.Channel; result != nil {
+		posts := make([]PostData, 0, len(result.Data.Children))
+		for _, post := range result.Data.Children {
+			posts = append(posts, post.Data)
+		}
+		fmt.Println("🔥 Reddit integration completed, found", len(posts), "posts")
 	}
 
-	fmt.Println("🔥 Reddit integration completed, found", len(result.Data.Children), "posts")
+	// Close the channel after processing
+	close(client.Channel)
 }
